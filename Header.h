@@ -23,7 +23,7 @@ private:
 	double R = 8.31446261815324;
 	double m_omega;
 
-	std::vector<std::vector<double>> n, mu; // first index - number of comp.; second - spatial step
+	std::vector<std::vector<double>> n; // first index - number of comp.; second - spatial step
 	std::vector<double> f, x; std::map<std::pair<int, int>, double> A; // SLAE A*x = f
 	
 	void subtract_vec(std::vector<double> x, std::vector<double> y, std::vector<double>& rez, int rank);
@@ -37,9 +37,14 @@ private:
 	double df_bulk(int, int);
 	void RightSideVector();
 	void matrixA();
+	void Mcoeff_init();
+	void Acoeff_init();
+	void Ccoeff_init();
+	void n_initDist_init();
 public:
 	solver() {};
 	void initialization(int);
 	void Jacobi(int rank);
+	void printA();
 };
 
