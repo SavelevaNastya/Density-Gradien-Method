@@ -44,6 +44,7 @@ void solver::printA() {
     }
     
 }
+
 void solver::matrixA() {
     int M = settings["M"][0]; 
     int N = settings["N"][0];
@@ -79,6 +80,8 @@ void solver::matrixA() {
             for (size_t i = k * N; i < (1 + k) * N; i++) { // номер строки в этом блоке
                 for (size_t j = N * M + p * N; j < N * M + (1 + p) * N; j++) { // номер столбца в этом блоке
                     double coeff_1 = Mcoeff[k][p] * settings["delta_t"][0] / (settings["delta_z"][0] * settings["delta_z"][0]);
+
+                    if (coeff_1 == 0) { continue; }
 
                     if ( (i == k * N) ) { // boundary condition on right side
                         if (i - k * N == j - N * M - p * N) {
@@ -121,6 +124,8 @@ void solver::matrixA() {
             for (size_t i = N * M + k * N; i < N * M + (1 + k) * N; i++) { // номер строки в этом блоке
                 for (size_t j = p * (N); j < (1 + p) * N; j++) { // номер столбца в этом блоке
                     double coeff_1 = c[k][p] / (settings["delta_z"][0] * settings["delta_z"][0]);
+
+                    if (coeff_1 == 0) { continue; }
 
                     if ( (i == N * M + k * N) ) { // boundary condition on right side
                         if (i - k * N - N * M == j - p * N) {
@@ -211,21 +216,42 @@ double solver::normaInf(std::vector<double> X, int rank) {
 
 void solver::mult_matvec(std::map<std::pair<int, int>, double> A, std::vector<double> b, std::vector<double>& Ab, int rank) {
 
-    for (int i = rank * RowNum; i < (rank + 1) * RowNum; i++) {
+    /*for (int i = rank * RowNum; i < (rank + 1) * RowNum; i++) {
         for (int j = 0; j < 2 * settings["N"][0] * settings["M"][0]; j++) {
             if (i != j)
                 Ab[i] += A.find(std::make_pair(i, j))->second * b[j];
+        }
+    }*/
+
+    for (auto& t : A) {
+        if (A.count(std::make_pair(t.first.first, t.first.second)) == 1) {
+            if (t.first.first != t.first.second) {
+                Ab[t.first.first] += t.second * b[t.first.second];
+            }
+        }
+        else {
+            continue;
         }
     }
 }
 
 void solver::mult_matvec_(std::map<std::pair<int, int>, double> A, std::vector<double> b, std::vector<double>& Ab, int rank) {
 
-    for (int i = rank * RowNum; i < (rank + 1) * RowNum; i++) {
+
+    for (auto& t : A) {
+        if (A.count(std::make_pair(t.first.first, t.first.second)) == 1) {
+            Ab[t.first.first] += t.second * b[t.first.second];
+        }
+        else {
+            continue;
+        }
+    }
+
+    /*for (int i = rank * RowNum; i < (rank + 1) * RowNum; i++) {
         for (int j = 0; j < 2 * settings["N"][0] * settings["M"][0]; j++) {
             Ab[i] += A.find(std::make_pair(i, j))->second * b[j];
         }
-    }
+    }*/
 }
 
 void solver::Jacobi(int rank) {
@@ -275,10 +301,20 @@ void solver::update_X(std::vector<double>& Xnew, std::vector<double>& X, int ran
 }
 
 void solver::devide(std::vector<double>& X, std::map<std::pair<int, int>, double> A, int rank) {
-    for (int i = rank * RowNum; i < (rank + 1) * RowNum; i++) {
-        //X[i] /= A[i][i];
-        X[i] /= A.find(std::make_pair(i, i))->second;
+    //for (int i = rank * RowNum; i < (rank + 1) * RowNum; i++) {
+    //    //X[i] /= A[i][i];
+    //    X[i] /= A.find(std::make_pair(i, i))->second;
+    //}
+
+    for (auto& t : A) {
+        if (A.count(std::make_pair(t.first.first, t.first.first)) == 1) {
+            X[t.first.first] /= A.find(std::make_pair(t.first.first, t.first.first))->second;
+        }
+        else {
+            /// oops
+        }
     }
+
 }
 
 void solver::assignment(std::vector<double>& X, std::vector<double> F, int rank) {
@@ -342,7 +378,7 @@ void solver::initialization(int world_size) {
     
     n_initDist_init();
 
-    x.resize(2*settings["M"][0]* settings["N"][0]);
+    x.resize(2*settings["M"][0] * settings["N"][0]);
 
     RightSideVector();
 
