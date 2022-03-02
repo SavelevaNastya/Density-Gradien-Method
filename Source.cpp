@@ -36,13 +36,12 @@ void solver::RightSideVector() {
         }
     }
 }
+
 void solver::printA() {
-    std::cout << "  M = " << settings["M"][0] << std::endl;
-    std::cout << "  N = " << settings["N"][0] << std::endl;
-    for (auto& t : A) {
-        std::cout << "A[" << t.first.first << ", " << t.first.second << "] = " << t.second << std::endl;
+    std::cout << "size = " << Arecv_value.size() << std::endl;
+    for (int i = 0; i < Arecv_value.size(); i++) {
+        std::cout << "A[" << Arecv_strIdx[i] << ", " << Arecv_colIdx[i] << "] = " << Arecv_value[i] << std::endl;
     }
-    
 }
 
 void solver::matrixA() {
@@ -55,19 +54,25 @@ void solver::matrixA() {
                     if (k == p) {
                         if ((i == k * N)) { // boundary condition on right side
                             if (i == j) {
-                                A.insert(std::make_pair(std::make_pair(i, j), 1.0));
+                                A_strIdx.push_back(i);
+                                A_colIdx.push_back(j);
+                                A_value.push_back(1.0);
                                 continue;
                             }
                         }
 
                         if ((i == (k + 1) * N - 1)) { // boundary condition on left side
                             if (i == j) {
-                                A.insert(std::make_pair(std::make_pair(i, j), 1.0));
+                                A_strIdx.push_back(i);
+                                A_colIdx.push_back(j);
+                                A_value.push_back(1.0);
                                 continue;
                             }
                         }
                         if ((i - k * N) == (j - p * N)) {
-                            A.insert(std::make_pair(std::make_pair(i, j), 1.0));
+                            A_strIdx.push_back(i);
+                            A_colIdx.push_back(j);
+                            A_value.push_back(1.0);
                         }
                     }
                 }
@@ -83,42 +88,56 @@ void solver::matrixA() {
 
                     if (coeff_1 == 0) { continue; }
 
-                    if ( (i == k * N) ) { // boundary condition on right side
+                    if ((i == k * N)) { // boundary condition on right side
                         if (i - k * N == j - N * M - p * N) {
-                            A.insert(std::make_pair(std::make_pair(i, j), -coeff_1));
+                            A_strIdx.push_back(i);
+                            A_colIdx.push_back(j);
+                            A_value.push_back(-coeff_1);
                             continue;
                         }
                         if (i - k * N == j - 1 - N * M - p * N) {
-                            A.insert(std::make_pair(std::make_pair(i, j), coeff_1));
+                            A_strIdx.push_back(i);
+                            A_colIdx.push_back(j);
+                            A_value.push_back(coeff_1);
                             continue;
                         }
                     }
 
                     if ((i == (k + 1) * N - 1)) { // boundary condition on left side
-                        if (i - k * N == j - N*M - p * N) {
-                            A.insert(std::make_pair(std::make_pair(i, j), -coeff_1));
+                        if (i - k * N == j - N * M - p * N) {
+                            A_strIdx.push_back(i);
+                            A_colIdx.push_back(j);
+                            A_value.push_back(-coeff_1);
                             continue;
                         }
-                        if (i - k * N == j - N*M - p * N - 1) {
-                            A.insert(std::make_pair(std::make_pair(i, j), coeff_1));
+                        if (i - k * N == j - N * M - p * N - 1) {
+                            A_strIdx.push_back(i);
+                            A_colIdx.push_back(j);
+                            A_value.push_back(coeff_1);
                             continue;
                         }
                     }
 
-                    if ( (i - k * N) == (j - N * M - p * N - 1) ) {
-                        A.insert(std::make_pair(std::make_pair(i, j), coeff_1));
+                    if ((i - k * N) == (j - N * M - p * N - 1)) {
+                        A_strIdx.push_back(i);
+                        A_colIdx.push_back(j);
+                        A_value.push_back(coeff_1);
                     }
-                    if ( (i - k * N) == (j - N * M - p * N) ) {
-                        A.insert(std::make_pair(std::make_pair(i, j), -2*coeff_1));
+                    if ((i - k * N) == (j - N * M - p * N)) {
+                        A_strIdx.push_back(i);
+                        A_colIdx.push_back(j);
+                        A_value.push_back(-2 * coeff_1);
                     }
                     if ((i - k * N) == (j - N * M - p * N + 1)) {
-                        A.insert(std::make_pair(std::make_pair(i, j), coeff_1));
+                        A_strIdx.push_back(i);
+                        A_colIdx.push_back(j);
+                        A_value.push_back(coeff_1);
                     }
                 }
             }
         }
     }
-    
+
     for (size_t k = 0; k < M; k++) { //номер блока по горизонтали 
         for (size_t p = 0; p < M; p++) { // номер блока по вертикали 
             for (size_t i = N * M + k * N; i < N * M + (1 + k) * N; i++) { // номер строки в этом блоке
@@ -127,36 +146,50 @@ void solver::matrixA() {
 
                     if (coeff_1 == 0) { continue; }
 
-                    if ( (i == N * M + k * N) ) { // boundary condition on right side
+                    if ((i == N * M + k * N)) { // boundary condition on right side
                         if (i - k * N - N * M == j - p * N) {
-                            A.insert(std::make_pair(std::make_pair(i, j), -coeff_1));
+                            A_strIdx.push_back(i);
+                            A_colIdx.push_back(j);
+                            A_value.push_back(-coeff_1);
                             continue;
                         }
                         if (i - k * N - N * M == j - 1 - p * N) {
-                            A.insert(std::make_pair(std::make_pair(i, j), coeff_1));
+                            A_strIdx.push_back(i);
+                            A_colIdx.push_back(j);
+                            A_value.push_back(coeff_1);
                             continue;
                         }
                     }
 
-                    if ( (i == (k + 1) * N - 1 + N * M) ) { // boundary condition on left side
-                        if (i - k * N - N * M  == j - p * N) {
-                            A.insert(std::make_pair(std::make_pair(i, j), -coeff_1));
+                    if ((i == (k + 1) * N - 1 + N * M)) { // boundary condition on left side
+                        if (i - k * N - N * M == j - p * N) {
+                            A_strIdx.push_back(i);
+                            A_colIdx.push_back(j);
+                            A_value.push_back(-coeff_1);
                             continue;
                         }
                         if (i - k * N - N * M == j - p * N - 1) {
-                            A.insert(std::make_pair(std::make_pair(i, j), coeff_1));
+                            A_strIdx.push_back(i);
+                            A_colIdx.push_back(j);
+                            A_value.push_back(coeff_1);
                             continue;
                         }
                     }
 
-                    if ((i - k * N - N * M) == (j  - p * N - 1)) {
-                        A.insert(std::make_pair(std::make_pair(i, j), coeff_1));
+                    if ((i - k * N - N * M) == (j - p * N - 1)) {
+                        A_strIdx.push_back(i);
+                        A_colIdx.push_back(j);
+                        A_value.push_back(coeff_1);
                     }
                     if ((i - k * N - N * M) == (j - p * N)) {
-                        A.insert(std::make_pair(std::make_pair(i, j), -2*coeff_1));
+                        A_strIdx.push_back(i);
+                        A_colIdx.push_back(j);
+                        A_value.push_back(-2 * coeff_1);
                     }
                     if ((i - k * N - N * M) == (j - p * N + 1)) {
-                        A.insert(std::make_pair(std::make_pair(i, j), coeff_1));
+                        A_strIdx.push_back(i);
+                        A_colIdx.push_back(j);
+                        A_value.push_back(coeff_1);
                     }
                 }
             }
@@ -170,156 +203,116 @@ void solver::matrixA() {
                     if (k == p) {
                         if ((i == N * M + k * N)) { // boundary condition on right side
                             if (i == j) {
-                                A.insert(std::make_pair(std::make_pair(i, j), 1.0));
+                                A_strIdx.push_back(i);
+                                A_colIdx.push_back(j);
+                                A_value.push_back(1.0);
                                 continue;
                             }
                         }
 
                         if ((i == (k + 1) * N - 1 + N * M)) { // boundary condition on left side
                             if (i == j) {
-                                A.insert(std::make_pair(std::make_pair(i, j), 1.0));
+                                A_strIdx.push_back(i);
+                                A_colIdx.push_back(j);
+                                A_value.push_back(1.0);
                                 continue;
                             }
                         }
 
                         if ((i - k * N - N * M) == (j - p * N - N * M)) {
-                            A.insert(std::make_pair(std::make_pair(i, j), 1.0));
+                            A_strIdx.push_back(i);
+                            A_colIdx.push_back(j);
+                            A_value.push_back(1.0);
                         }
                     }
                 }
             }
         }
     }
+
+    sendcount = A_value.size() / numOfProc;
+
+    Arecv_value.resize(sendcount);
+    Arecv_colIdx.resize(sendcount);
+    Arecv_strIdx.resize(sendcount);
+
+    MPI_Scatter(A_value.data(), sendcount, MPI_DOUBLE, Arecv_value.data(), sendcount, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Scatter(A_strIdx.data(), sendcount, MPI_INT, Arecv_colIdx.data(), sendcount, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Scatter(A_colIdx.data(), sendcount, MPI_INT, Arecv_strIdx.data(), sendcount, MPI_INT, 0, MPI_COMM_WORLD);
 }
 
-double solver::normaInf(std::vector<double> X, int rank) {  
-    //std::vector<double> abs_vec;
-    //for (int compIdx = 0; compIdx < M; compIdx++) {
-    //    //abs_vec[compIdx] = n[compIdx][spatialIdx] - n_new[compIdx][spatialIdx];
-    // }
-    //double rez = fabs(abs_vec[0]);
-    //for (int i = 1; i < M; i++) {
-    //    if (fabs(abs_vec[i]) > rez) {
-    //        rez = fabs(abs_vec[i]);
-    //    }
-    //}
-    //return rez;
-
-    double norm = 0.0;
-    for (int i = rank * RowNum; i < (rank + 1) * RowNum; i++)
-    {
-        MPI_Allreduce(&x[i], &norm, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+double solver::normaInf() {  
+    double norm = 0.0;   
+    norm = fabs(TempX[0]);
+    for (int i = 0; i < TempX.size(); i++) {
+        if (fabs(TempX[i]) > norm) {
+            norm = fabs(TempX[i]);
+        }
     }
-    MPI_Barrier(MPI_COMM_WORLD);
     return norm;
 }
 
-void solver::mult_matvec(std::map<std::pair<int, int>, double> A, std::vector<double> b, std::vector<double>& Ab, int rank) {
-
-    /*for (int i = rank * RowNum; i < (rank + 1) * RowNum; i++) {
-        for (int j = 0; j < 2 * settings["N"][0] * settings["M"][0]; j++) {
-            if (i != j)
-                Ab[i] += A.find(std::make_pair(i, j))->second * b[j];
-        }
-    }*/
-
-    for (auto& t : A) {
-        if (A.count(std::make_pair(t.first.first, t.first.second)) == 1) {
-            if (t.first.first != t.first.second) {
-                Ab[t.first.first] += t.second * b[t.first.second];
-            }
-        }
-        else {
-            continue;
+void solver::mult_matvec(int rank) {
+    for (int i = 0; i < sendcount; i++) {
+        if (Arecv_colIdx[i] != Arecv_strIdx[i]) {
+            Ax[i+rank*sendcount] += Arecv_value[i] * x[i + rank * sendcount];
         }
     }
-}
-
-void solver::mult_matvec_(std::map<std::pair<int, int>, double> A, std::vector<double> b, std::vector<double>& Ab, int rank) {
-
-
-    for (auto& t : A) {
-        if (A.count(std::make_pair(t.first.first, t.first.second)) == 1) {
-            Ab[t.first.first] += t.second * b[t.first.second];
-        }
-        else {
-            continue;
-        }
-    }
-
-    /*for (int i = rank * RowNum; i < (rank + 1) * RowNum; i++) {
-        for (int j = 0; j < 2 * settings["N"][0] * settings["M"][0]; j++) {
-            Ab[i] += A.find(std::make_pair(i, j))->second * b[j];
-        }
-    }*/
 }
 
 void solver::Jacobi(int rank) {
-	
-    std::vector<double> TempX;
-    std::vector<double> Ax;
-    std::vector<double> rezX;
-    TempX.resize(2 * settings["N"][0] * settings["M"][0]);
     Ax.resize(2 * settings["N"][0] * settings["M"][0]);
-    rezX.resize(2 * settings["N"][0] * settings["M"][0]);
 	double norm = 0.0;
 	int iter = 0;
 
 	do {
 		iter++;
-		assignment(TempX, f, rank);
-		mult_matvec(A, x, Ax, rank);
-		subtract_vec(TempX, Ax, TempX, rank);
-		devide(TempX, A, rank);
+		assignment();
+		mult_matvec(rank);
+		subtract_vec();
+		devide();
 
-		abs_subtract_vec(x, TempX, rezX, rank);
-		norm = normaInf(rezX, rank);
+		abs_subtract_vec();
+		norm = normaInf();
 		if (rank == 0) { std::cout << "NORMA = " << norm << " " << "ITER " << iter << std::endl; }
 
-		update_X(TempX, x, rank);
+		update_X();
 
 	} while (norm > settings["eps"][0]);
 	if (rank == 0) { std::cout << "	Number of iteration = " << iter << std::endl; }
 }
 
-void solver::subtract_vec(std::vector<double> x, std::vector<double> y, std::vector<double>& rez, int rank) {
-    for (int i = rank * RowNum; i < (rank + 1) * RowNum; i++) {
-        rez[i] = x[i] - y[i];
+void solver::assignment() {
+    for (int i = 0; i < f.size(); i++) { //int i = rank * sendcount; i < (rank + 1) * sendcount; i++
+        TempX.push_back(f[i]);
     }
 }
 
-void solver::abs_subtract_vec(std::vector<double> x, std::vector<double> y, std::vector<double>& z, int rank) {
-    for (int i = rank * RowNum; i < (rank + 1) * RowNum; i++) {
-        z[i] = fabs(x[i] - y[i]);
+void solver::subtract_vec() {
+    for (int i = 0; i < TempX.size(); i++) {
+        TempX[i] = TempX[i] - Ax[i];
     }
 }
 
-void solver::update_X(std::vector<double>& Xnew, std::vector<double>& X, int rank) {
-    for (int i = rank * RowNum; i < (rank + 1) * RowNum; i++) {
-        X[i] = Xnew[i];
+void solver::abs_subtract_vec() {
+    for (int i = 0; i < TempX.size(); i++) {
+        TempX[i] = fabs(x[i] - TempX[i]);
     }
 }
 
-void solver::devide(std::vector<double>& X, std::map<std::pair<int, int>, double> A, int rank) {
-    //for (int i = rank * RowNum; i < (rank + 1) * RowNum; i++) {
-    //    //X[i] /= A[i][i];
-    //    X[i] /= A.find(std::make_pair(i, i))->second;
-    //}
+void solver::update_X() {
+    x.resize(TempX.size());
+    for (int i = 0; i < TempX.size(); i++) {
+        x[i] = TempX[i];
+    }
+}
 
-    for (auto& t : A) {
-        if (A.count(std::make_pair(t.first.first, t.first.first)) == 1) {
-            X[t.first.first] /= A.find(std::make_pair(t.first.first, t.first.first))->second;
+void solver::devide() {
+    
+    for (int i = 0; i < sendcount; i++) {
+        if (Arecv_strIdx[i] == Arecv_colIdx[i]) {
+            TempX[Arecv_strIdx[i]] /=  Arecv_value[i];
         }
-        else {
-            /// oops
-        }
-    }
-
-}
-
-void solver::assignment(std::vector<double>& X, std::vector<double> F, int rank) {
-    for (int i = rank * RowNum; i < (rank + 1) * RowNum; i++) {
-        X[i] = F[i];
     }
 }
 
@@ -360,7 +353,7 @@ void solver::initialization(int world_size) {
         a_i.push_back(0.457235 * alpha_Tr_omega[i] * R * R * settings["Tc"][i] * settings["Tc"][i] / settings["Pc"][i]);
     }
 
-    RowNum = 2 * settings["N"][0] * settings["M"][0] / world_size;
+    numOfProc = world_size;
 
     double omega = settings["omega"][0];
     if (omega <= 0.491) {
@@ -384,7 +377,6 @@ void solver::initialization(int world_size) {
 
     matrixA();
 
-    int checkPoint = 1;
 }
 
 void solver::Mcoeff_init() {

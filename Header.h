@@ -16,7 +16,7 @@ private:
 	std::vector<std::vector<double>> c, Mcoeff, Acoeff;
 
 	int numOfProc;
-	int RowNum;
+	int sendcount;
 
 	double delta_1 = 1 - sqrt(2);
 	double delta_2 = 1 + sqrt(2);
@@ -24,16 +24,22 @@ private:
 	double m_omega;
 
 	std::vector<std::vector<double>> n; // first index - number of comp.; second - spatial step
-	std::vector<double> f, x; std::map<std::pair<int, int>, double> A; // SLAE A*x = f
+	std::vector<double> f, x; std::vector<double> A_value, Arecv_value;; // SLAE A*x = f
 	
-	void subtract_vec(std::vector<double> x, std::vector<double> y, std::vector<double>& rez, int rank);
-	void abs_subtract_vec(std::vector<double> x, std::vector<double> y, std::vector<double>& z, int rank);
-	void update_X(std::vector<double>& Xnew, std::vector<double>& X, int rank);
-	void devide(std::vector<double>& X, std::map<std::pair<int, int>, double> A, int rank);
-	void assignment(std::vector<double>& X, std::vector<double> F, int rank);
-	double normaInf(std::vector<double> X, int rank);
-	void mult_matvec_(std::map<std::pair<int, int>, double> A, std::vector<double> b, std::vector<double>& Ab, int rank);
-	void mult_matvec(std::map<std::pair<int, int>, double> A, std::vector<double> b, std::vector<double>& Ab, int rank);
+	std::vector<int> A_strIdx, Arecv_strIdx;
+	std::vector<int> A_colIdx, Arecv_colIdx;
+
+	void subtract_vec();
+	void abs_subtract_vec();
+	void update_X();
+	void devide();
+	void assignment();
+	double normaInf();
+	void mult_matvec(int rank);
+	std::vector<double> TempX;
+	std::vector<double> Ax;
+	std::vector<double> rezX;
+
 	double df_bulk(int, int);
 	void RightSideVector();
 	void matrixA();

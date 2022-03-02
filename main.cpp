@@ -16,10 +16,12 @@ int main() {
 	if (world_rank == 0) { std::cout << "	number of proccess = " << world_size << std::endl; }
 
 	solver s;
-	s.initialization(1);
-	s.printA();
+	s.initialization(world_size);
+	if (world_rank == 0) {
+		s.printA();
+	}
 	//s.Jacobi(world_rank);
-
+	    
 	MPI_Finalize();
 	return 0;
 }
