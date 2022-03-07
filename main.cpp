@@ -18,9 +18,11 @@ int main() {
 	solver s;
 	s.initialization(world_size);
 	if (world_rank == 0) {
-		s.printA();
+		//s.printA();
 	}
-	//s.Jacobi(world_rank);
+	
+	s.Jacobi(world_rank);
+	s.printAnswer(world_rank);
 	    
 	MPI_Finalize();
 	return 0;

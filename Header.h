@@ -49,8 +49,9 @@ private:
 	void n_initDist_init();
 public:
 	solver() {};
-	void initialization(int);
+	void initialization(int rank);
 	void Jacobi(int rank);
 	void printA();
+	void printAnswer(int rank);
 };
 

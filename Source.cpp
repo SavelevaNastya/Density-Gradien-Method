@@ -15,10 +15,11 @@ double solver::df_bulk(int compIdx, int spatialIdx) {
         sum1 += n[i][spatialIdx] * Acoeff[compIdx][i];
         sum2 += n[i][spatialIdx] * Acoeff[i][compIdx];
     }
-    
-    double rez = R * Temp * (b_i[compIdx] * n_sum / (1 - b * n_sum) + log(n[compIdx][spatialIdx]) - log(1 - b * n_sum))
-        + ((sum1 + sum2)/(b*n_sum) - a_i[compIdx]*b_i[compIdx]/(b*b)) * log((b * delta_1 * n_sum + 1) / (b * delta_2 * n_sum + 1)) / (delta_2 - delta_1)
-        - a_i[compIdx] * b_i[compIdx] * n_sum / (b * (delta_1 * b * n_sum + 1) * (delta_2 * b * n_sum + 1));
+
+    double rez_1 = R * Temp * (b_i[compIdx] * n_sum / (1 - b * n_sum) + log(n[compIdx][spatialIdx]) - log(1 - b * n_sum));
+    double rez_2 = ((sum1 + sum2) / (b * n_sum) - a_i[compIdx] * b_i[compIdx] / (b * b)) * log((b * delta_1 * n_sum + 1) / (b * delta_2 * n_sum + 1)) / (delta_2 - delta_1);
+    double rez_3 = a_i[compIdx] * b_i[compIdx] * n_sum / (b * (delta_1 * b * n_sum + 1) * (delta_2 * b * n_sum + 1));
+    double rez = rez_1 + rez_2 + rez_3;
     return rez;
 }
 
@@ -243,31 +244,43 @@ void solver::matrixA() {
 
 double solver::normaInf() {  
     double norm = 0.0;   
-    norm = fabs(TempX[0]);
-    for (int i = 0; i < TempX.size(); i++) {
-        if (fabs(TempX[i]) > norm) {
-            norm = fabs(TempX[i]);
+    norm = fabs(rezX[0]);
+    for (int i = 1; i < rezX.size(); i++) {
+        if (fabs(rezX[i]) > norm) {
+            norm = fabs(rezX[i]);
         }
     }
+    //std::cout << "normaInf done" << std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
     return norm;
 }
 
 void solver::mult_matvec(int rank) {
     for (int i = 0; i < sendcount; i++) {
         if (Arecv_colIdx[i] != Arecv_strIdx[i]) {
-            Ax[i+rank*sendcount] += Arecv_value[i] * x[i + rank * sendcount];
+            Ax[Arecv_colIdx[i] + rank * sendcount] += Arecv_value[i] * x[Arecv_colIdx[i] + rank * sendcount];
         }
     }
+    //std::cout << "mult_matvec done" << std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
 }
 
 void solver::Jacobi(int rank) {
-    Ax.resize(2 * settings["N"][0] * settings["M"][0]);
+
+    //std::cout << "size of Arecv_value = " << Arecv_value.size() << std::endl;
+    Ax.resize(2 * settings["N"][0] * settings["M"][0]); // Arecv_value.size()
 	double norm = 0.0;
 	int iter = 0;
-
+    double eps = settings["eps"][0];
 	do {
 		iter++;
 		assignment();
+        if (iter == 1) {
+            x.resize(TempX.size());
+            for (int i = 0; i < x.size(); i++) {
+                x[i] = f[i] * 0.359;
+            }
+        }
 		mult_matvec(rank);
 		subtract_vec();
 		devide();
@@ -278,26 +291,36 @@ void solver::Jacobi(int rank) {
 
 		update_X();
 
-	} while (norm > settings["eps"][0]);
+	} while (norm > eps);
 	if (rank == 0) { std::cout << "	Number of iteration = " << iter << std::endl; }
 }
 
 void solver::assignment() {
+    TempX.resize(f.size());
     for (int i = 0; i < f.size(); i++) { //int i = rank * sendcount; i < (rank + 1) * sendcount; i++
-        TempX.push_back(f[i]);
+        TempX[i] = f[i];
     }
+    //std::cout << "assignment done" << std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
 }
 
 void solver::subtract_vec() {
+    //std::cout << "size of Ax = " << Ax.size() << std::endl;
+    //std::cout << "size of TempX = " << TempX.size() << std::endl;
     for (int i = 0; i < TempX.size(); i++) {
         TempX[i] = TempX[i] - Ax[i];
     }
+    //std::cout << "subtract_vec done" << std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
 }
 
 void solver::abs_subtract_vec() {
+    rezX.resize(x.size());
     for (int i = 0; i < TempX.size(); i++) {
-        TempX[i] = fabs(x[i] - TempX[i]);
+        rezX[i] = fabs(x[i] - TempX[i]);
     }
+    //std::cout << "abs_subtract_vec done" << std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
 }
 
 void solver::update_X() {
@@ -305,15 +328,18 @@ void solver::update_X() {
     for (int i = 0; i < TempX.size(); i++) {
         x[i] = TempX[i];
     }
+    //std::cout << "update_X done" << std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
 }
 
 void solver::devide() {
-    
     for (int i = 0; i < sendcount; i++) {
         if (Arecv_strIdx[i] == Arecv_colIdx[i]) {
             TempX[Arecv_strIdx[i]] /=  Arecv_value[i];
         }
     }
+    //std::cout << "devide done" << std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
 }
 
 void solver::initialization(int world_size) {
@@ -500,6 +526,17 @@ void solver::n_initDist_init() {
             s >> m;
             n[i].push_back(m);
             i++;
+        }
+    }
+}
+
+void solver::printAnswer(int rank) {
+    /*for (auto& elem : TempX) {
+        std::cout << elem << std::endl;
+    }*/
+    if (rank == 0) {
+        for (int i = 0; i < TempX.size(); i++) {
+            std::cout << "X[" << i << "] = " << TempX[i] << std::endl;
         }
     }
 }
