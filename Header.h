@@ -5,53 +5,41 @@
 #include <mpi.h>
 #include <fstream>
 #include <sstream>
+#include <iostream>
+#include <F:/Eigen/Dense>
+#include <F:/Eigen/Sparse>
+
+using namespace Eigen;
+
 class solver {
 private:
-	std::map<std::string, std::vector<double>> settings; //N, M, delta_t, delta_z, eps, Temp, b, omega, Tc[], Pc[]
+	std::map<std::string, std::vector<double>> settings; //M, delta_t, delta_z, Temp, omega[], Tc[], Pc[]
 
-	std::vector<double> Tr;
-	std::vector<double> alpha_Tr_omega;
-	std::vector<double> b_i;
-	std::vector<double> a_i;
-	std::vector<std::vector<double>> c, Mcoeff, Acoeff;
-
-	int numOfProc;
-	int sendcount;
+	std::vector<double> Tr, alpha_Tr_omega, a_i, b_i, z, m_omega;
+	std::vector<std::vector<double>> c, Mcoeff, Acoeff, Kcoeff, temp;
 
 	double delta_1 = 1 - sqrt(2);
 	double delta_2 = 1 + sqrt(2);
 	double R = 8.31446261815324;
-	double m_omega;
 
 	std::vector<std::vector<double>> n; // first index - number of comp.; second - spatial step
-	std::vector<double> f, x; std::vector<double> A_value, Arecv_value;; // SLAE A*x = f
-	
-	std::vector<int> A_strIdx, Arecv_strIdx;
-	std::vector<int> A_colIdx, Arecv_colIdx;
 
-	void subtract_vec();
-	void abs_subtract_vec();
-	void update_X();
-	void devide();
-	void assignment();
-	double normaInf();
-	void mult_matvec(int rank);
-	std::vector<double> TempX;
-	std::vector<double> Ax;
-	std::vector<double> rezX;
+	Eigen::VectorXd x, f;
+	Eigen::SparseMatrix<double> A_value; //SLAE A* x = f
+	double delta_z, delta_t, time;
 
 	double df_bulk(int, int);
 	void RightSideVector();
 	void matrixA();
 	void Mcoeff_init();
-	void Acoeff_init();
-	void Ccoeff_init();
+	void Kcoeff_init();
+	void Lcoeff_init();
 	void n_initDist_init();
+	void fill_matrix_from_file(std::string path, char Matrix);
+	void writeAnswer();
+	void new_time_step();
 public:
-	solver() {};
-	void initialization(int rank);
-	void Jacobi(int rank);
-	void printA();
-	void printAnswer(int rank);
+	void initialization();
+	void solve();
+	void printAnswer();
 };
-

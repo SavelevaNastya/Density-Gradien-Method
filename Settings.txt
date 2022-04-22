@@ -1,11 +1,7 @@
-N 10
-M 3
-delta_t 0.001
-delta_z 0.001
-Temp 3
-b 2
-R 8.31
-omega 3
-eps 0.0001
-Tc 1 2.5 3
-Pc 4 1.35 0.5
+M 2
+delta_t 0.000001
+delta_z 0.000001
+Temp 293.15
+omega 0.228 0.484
+Tc 304.18 617.7
+Pc 7380000 2130000

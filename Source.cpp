@@ -1,53 +1,83 @@
 #include "Header.h"
-#include <iostream>
+
+using namespace Eigen;
+#include <math.h>
 
 double solver::df_bulk(int compIdx, int spatialIdx) {
     
     double n_sum = 0;
     double sum1 = 0, sum2 = 0;
 
-    int M = settings["M"][0];
+    int M = settings["M"][0]; 
+    int N = 1.0 / settings["delta_z"][0];
     double Temp = settings["Temp"][0];
-    double b = settings["b"][0];
+    double b = 0, a = 0;
 
+    Acoeff.resize(M);
     for (int i = 0; i < M; i++) {
-        n_sum = n_sum + n[i][spatialIdx];
+        Acoeff[i].resize(M);
+    }
+    for (int i = 0; i < M; i++) {
+        for (int j = 0; j < M; j++) {
+            Acoeff[i][j] = sqrt(a_i[i] * a_i[j]) * (1 - Kcoeff[i][j]);
+        }
+    }
+    std::vector<double> L_pure_comp;
+    L_pure_comp.push_back(2.6147e-20);
+    L_pure_comp.push_back(1.2415e-18);
+    for (int i = 0; i < M; i++) {
+        for (int j = 0; j < M; j++) {
+            c[i][j] = sqrt(L_pure_comp[i] * L_pure_comp[j]) * (1 - c[i][j]);
+        }
+    }
+    for (int i = 0; i < M; i++) {
+        n_sum += n[i][spatialIdx];
         sum1 += n[i][spatialIdx] * Acoeff[compIdx][i];
         sum2 += n[i][spatialIdx] * Acoeff[i][compIdx];
     }
 
+    z.resize(M);
+    for (int i = 0; i < M; i++) {
+        z[i] = n[compIdx][spatialIdx] / n_sum;
+        b += z[i] * b_i[i];
+        for (int j = 0; j < M; j++) {
+            a += z[i] * z[j] * Acoeff[i][j];
+        }
+    }
+
     double rez_1 = R * Temp * (b_i[compIdx] * n_sum / (1 - b * n_sum) + log(n[compIdx][spatialIdx]) - log(1 - b * n_sum));
-    double rez_2 = ((sum1 + sum2) / (b * n_sum) - a_i[compIdx] * b_i[compIdx] / (b * b)) * log((b * delta_1 * n_sum + 1) / (b * delta_2 * n_sum + 1)) / (delta_2 - delta_1);
-    double rez_3 = a_i[compIdx] * b_i[compIdx] * n_sum / (b * (delta_1 * b * n_sum + 1) * (delta_2 * b * n_sum + 1));
-    double rez = rez_1 + rez_2 + rez_3;
+    double rez_2 = ((sum1 + sum2) / (b * n_sum) - a * b_i[compIdx] / (b * b)) * log((b * delta_1 * n_sum + 1) / (b * delta_2 * n_sum + 1)) / (delta_2 - delta_1);
+    double rez_3 = a * b_i[compIdx] * n_sum / (b * (delta_1 * b * n_sum + 1) * (delta_2 * b * n_sum + 1));
+    double rez = rez_1 + rez_2 - rez_3;
     return rez;
 }
 
 void solver::RightSideVector() {
-    
-    for (size_t i = 0; i < settings["M"][0]; i++) {
-        for (size_t j = 0; j < settings["N"][0]; j++) {
-            f.push_back(n[i][j]);
+    int M = settings["M"][0];
+    int N = 1.0 / settings["delta_z"][0];
+    f.resize(2 * N * M);
+    int count = 0;
+    for (size_t i = 0; i < M; i++) {
+        for (size_t j = 0; j < N; j++) {
+            f(count) = n[i][j]; 
+            count++;
         }
     }
 
-    for (size_t i = 0; i < settings["M"][0]; i++) {
-        for (size_t j = 0; j < settings["N"][0]; j++) {
-            f.push_back(df_bulk(i,j));
+    for (size_t i = 0; i < M; i++) {
+        for (size_t j = 0; j < N; j++) {
+            f(count) = df_bulk(i, j);
+            count++;
         }
-    }
-}
-
-void solver::printA() {
-    std::cout << "size = " << Arecv_value.size() << std::endl;
-    for (int i = 0; i < Arecv_value.size(); i++) {
-        std::cout << "A[" << Arecv_strIdx[i] << ", " << Arecv_colIdx[i] << "] = " << Arecv_value[i] << std::endl;
     }
 }
 
 void solver::matrixA() {
     int M = settings["M"][0]; 
-    int N = settings["N"][0];
+    int N = 1.0 / settings["delta_z"][0];
+    int sz = 2 * M * N;
+    A_value.resize(sz, sz);
+    std::cout << "Initialization A: start..." << std::endl;
     for (size_t k = 0; k < M; k++) { //номер блока по горизонтали 
         for (size_t p = 0; p < M; p++) { // номер блока по вертикали 
             for (size_t i = k * N; i < (1 + k) * N; i++) { // номер строки в этом блоке
@@ -55,148 +85,115 @@ void solver::matrixA() {
                     if (k == p) {
                         if ((i == k * N)) { // boundary condition on right side
                             if (i == j) {
-                                A_strIdx.push_back(i);
-                                A_colIdx.push_back(j);
-                                A_value.push_back(1.0);
+                                A_value.insert(i, j) = 1.0;
                                 continue;
                             }
                         }
 
                         if ((i == (k + 1) * N - 1)) { // boundary condition on left side
                             if (i == j) {
-                                A_strIdx.push_back(i);
-                                A_colIdx.push_back(j);
-                                A_value.push_back(1.0);
+                                A_value.insert(i, j) = 1.0;
                                 continue;
                             }
                         }
                         if ((i - k * N) == (j - p * N)) {
-                            A_strIdx.push_back(i);
-                            A_colIdx.push_back(j);
-                            A_value.push_back(1.0);
+                            A_value.insert(i, j) = 1.0;
                         }
                     }
                 }
             }
         }
     }
-
+    std::cout << "  Initialization A, second block: start..." << std::endl;
     for (size_t k = 0; k < M; k++) { //номер блока по горизонтали 
         for (size_t p = 0; p < M; p++) { // номер блока по вертикали
             for (size_t i = k * N; i < (1 + k) * N; i++) { // номер строки в этом блоке
                 for (size_t j = N * M + p * N; j < N * M + (1 + p) * N; j++) { // номер столбца в этом блоке
-                    double coeff_1 = Mcoeff[k][p] * settings["delta_t"][0] / (settings["delta_z"][0] * settings["delta_z"][0]);
+                    double coeff_1 = Mcoeff[k][p] * delta_t / (delta_z * delta_z);
 
                     if (coeff_1 == 0) { continue; }
 
                     if ((i == k * N)) { // boundary condition on right side
                         if (i - k * N == j - N * M - p * N) {
-                            A_strIdx.push_back(i);
-                            A_colIdx.push_back(j);
-                            A_value.push_back(-coeff_1);
+                            A_value.insert(i, j) = -coeff_1;
                             continue;
                         }
                         if (i - k * N == j - 1 - N * M - p * N) {
-                            A_strIdx.push_back(i);
-                            A_colIdx.push_back(j);
-                            A_value.push_back(coeff_1);
+                            A_value.insert(i, j) = coeff_1;
                             continue;
                         }
                     }
 
                     if ((i == (k + 1) * N - 1)) { // boundary condition on left side
                         if (i - k * N == j - N * M - p * N) {
-                            A_strIdx.push_back(i);
-                            A_colIdx.push_back(j);
-                            A_value.push_back(-coeff_1);
+                            A_value.insert(i, j) = -coeff_1;
                             continue;
                         }
                         if (i - k * N == j - N * M - p * N - 1) {
-                            A_strIdx.push_back(i);
-                            A_colIdx.push_back(j);
-                            A_value.push_back(coeff_1);
+                            A_value.insert(i, j) = coeff_1;
                             continue;
                         }
                     }
 
                     if ((i - k * N) == (j - N * M - p * N - 1)) {
-                        A_strIdx.push_back(i);
-                        A_colIdx.push_back(j);
-                        A_value.push_back(coeff_1);
+                        A_value.insert(i, j) = coeff_1;
                     }
                     if ((i - k * N) == (j - N * M - p * N)) {
-                        A_strIdx.push_back(i);
-                        A_colIdx.push_back(j);
-                        A_value.push_back(-2 * coeff_1);
+                        A_value.insert(i, j) = -2 * coeff_1;
                     }
                     if ((i - k * N) == (j - N * M - p * N + 1)) {
-                        A_strIdx.push_back(i);
-                        A_colIdx.push_back(j);
-                        A_value.push_back(coeff_1);
+                        A_value.insert(i, j) = coeff_1;
                     }
                 }
             }
         }
     }
-
+    std::cout << "  Initialization A, third block: start..." << std::endl;
     for (size_t k = 0; k < M; k++) { //номер блока по горизонтали 
         for (size_t p = 0; p < M; p++) { // номер блока по вертикали 
             for (size_t i = N * M + k * N; i < N * M + (1 + k) * N; i++) { // номер строки в этом блоке
                 for (size_t j = p * (N); j < (1 + p) * N; j++) { // номер столбца в этом блоке
-                    double coeff_1 = c[k][p] / (settings["delta_z"][0] * settings["delta_z"][0]);
+                    double coeff_1 = c[k][p] / (delta_z * delta_z);
 
                     if (coeff_1 == 0) { continue; }
 
                     if ((i == N * M + k * N)) { // boundary condition on right side
                         if (i - k * N - N * M == j - p * N) {
-                            A_strIdx.push_back(i);
-                            A_colIdx.push_back(j);
-                            A_value.push_back(-coeff_1);
+                            A_value.insert(i, j) = -coeff_1;
                             continue;
                         }
                         if (i - k * N - N * M == j - 1 - p * N) {
-                            A_strIdx.push_back(i);
-                            A_colIdx.push_back(j);
-                            A_value.push_back(coeff_1);
+                            A_value.insert(i, j) = coeff_1;
                             continue;
                         }
                     }
 
                     if ((i == (k + 1) * N - 1 + N * M)) { // boundary condition on left side
                         if (i - k * N - N * M == j - p * N) {
-                            A_strIdx.push_back(i);
-                            A_colIdx.push_back(j);
-                            A_value.push_back(-coeff_1);
+                            A_value.insert(i, j) = -coeff_1;
                             continue;
                         }
                         if (i - k * N - N * M == j - p * N - 1) {
-                            A_strIdx.push_back(i);
-                            A_colIdx.push_back(j);
-                            A_value.push_back(coeff_1);
+                            A_value.insert(i, j) = coeff_1;
                             continue;
                         }
                     }
 
                     if ((i - k * N - N * M) == (j - p * N - 1)) {
-                        A_strIdx.push_back(i);
-                        A_colIdx.push_back(j);
-                        A_value.push_back(coeff_1);
+                        A_value.insert(i, j) = coeff_1;
                     }
                     if ((i - k * N - N * M) == (j - p * N)) {
-                        A_strIdx.push_back(i);
-                        A_colIdx.push_back(j);
-                        A_value.push_back(-2 * coeff_1);
+                        A_value.insert(i, j) = -2 * coeff_1;
+                        ;
                     }
                     if ((i - k * N - N * M) == (j - p * N + 1)) {
-                        A_strIdx.push_back(i);
-                        A_colIdx.push_back(j);
-                        A_value.push_back(coeff_1);
+                        A_value.insert(i, j) = coeff_1;
                     }
                 }
             }
         }
     }
-
+    std::cout << "  Initialization A, fourth block: start..." << std::endl;
     for (size_t k = 0; k < M; k++) { //номер блока по горизонтали 
         for (size_t p = 0; p < M; p++) { // номер блока по вертикали 
             for (size_t i = N * M + k * N; i < N * M + (1 + k) * N; i++) { // номер строки в этом блоке
@@ -204,145 +201,31 @@ void solver::matrixA() {
                     if (k == p) {
                         if ((i == N * M + k * N)) { // boundary condition on right side
                             if (i == j) {
-                                A_strIdx.push_back(i);
-                                A_colIdx.push_back(j);
-                                A_value.push_back(1.0);
+                                A_value.insert(i, j) = 1.0;
                                 continue;
                             }
                         }
 
                         if ((i == (k + 1) * N - 1 + N * M)) { // boundary condition on left side
                             if (i == j) {
-                                A_strIdx.push_back(i);
-                                A_colIdx.push_back(j);
-                                A_value.push_back(1.0);
+                                A_value.insert(i, j) = 1.0;
                                 continue;
                             }
                         }
 
                         if ((i - k * N - N * M) == (j - p * N - N * M)) {
-                            A_strIdx.push_back(i);
-                            A_colIdx.push_back(j);
-                            A_value.push_back(1.0);
+                            A_value.insert(i, j) = 1.0;
                         }
                     }
                 }
             }
         }
     }
-
-    sendcount = A_value.size() / numOfProc;
-
-    Arecv_value.resize(sendcount);
-    Arecv_colIdx.resize(sendcount);
-    Arecv_strIdx.resize(sendcount);
-
-    MPI_Scatter(A_value.data(), sendcount, MPI_DOUBLE, Arecv_value.data(), sendcount, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Scatter(A_strIdx.data(), sendcount, MPI_INT, Arecv_colIdx.data(), sendcount, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Scatter(A_colIdx.data(), sendcount, MPI_INT, Arecv_strIdx.data(), sendcount, MPI_INT, 0, MPI_COMM_WORLD);
+    std::cout << "Initialization A: done" << std::endl;
 }
 
-double solver::normaInf() {  
-    double norm = 0.0;   
-    norm = fabs(rezX[0]);
-    for (int i = 1; i < rezX.size(); i++) {
-        if (fabs(rezX[i]) > norm) {
-            norm = fabs(rezX[i]);
-        }
-    }
-    //std::cout << "normaInf done" << std::endl;
-    MPI_Barrier(MPI_COMM_WORLD);
-    return norm;
-}
-
-void solver::mult_matvec(int rank) {
-    for (int i = 0; i < sendcount; i++) {
-        if (Arecv_colIdx[i] != Arecv_strIdx[i]) {
-            Ax[Arecv_colIdx[i] + rank * sendcount] += Arecv_value[i] * x[Arecv_colIdx[i] + rank * sendcount];
-        }
-    }
-    //std::cout << "mult_matvec done" << std::endl;
-    MPI_Barrier(MPI_COMM_WORLD);
-}
-
-void solver::Jacobi(int rank) {
-
-    //std::cout << "size of Arecv_value = " << Arecv_value.size() << std::endl;
-    Ax.resize(2 * settings["N"][0] * settings["M"][0]); // Arecv_value.size()
-	double norm = 0.0;
-	int iter = 0;
-    double eps = settings["eps"][0];
-	do {
-		iter++;
-		assignment();
-        if (iter == 1) {
-            x.resize(TempX.size());
-            for (int i = 0; i < x.size(); i++) {
-                x[i] = f[i] * 0.359;
-            }
-        }
-		mult_matvec(rank);
-		subtract_vec();
-		devide();
-
-		abs_subtract_vec();
-		norm = normaInf();
-		if (rank == 0) { std::cout << "NORMA = " << norm << " " << "ITER " << iter << std::endl; }
-
-		update_X();
-
-	} while (norm > eps);
-	if (rank == 0) { std::cout << "	Number of iteration = " << iter << std::endl; }
-}
-
-void solver::assignment() {
-    TempX.resize(f.size());
-    for (int i = 0; i < f.size(); i++) { //int i = rank * sendcount; i < (rank + 1) * sendcount; i++
-        TempX[i] = f[i];
-    }
-    //std::cout << "assignment done" << std::endl;
-    MPI_Barrier(MPI_COMM_WORLD);
-}
-
-void solver::subtract_vec() {
-    //std::cout << "size of Ax = " << Ax.size() << std::endl;
-    //std::cout << "size of TempX = " << TempX.size() << std::endl;
-    for (int i = 0; i < TempX.size(); i++) {
-        TempX[i] = TempX[i] - Ax[i];
-    }
-    //std::cout << "subtract_vec done" << std::endl;
-    MPI_Barrier(MPI_COMM_WORLD);
-}
-
-void solver::abs_subtract_vec() {
-    rezX.resize(x.size());
-    for (int i = 0; i < TempX.size(); i++) {
-        rezX[i] = fabs(x[i] - TempX[i]);
-    }
-    //std::cout << "abs_subtract_vec done" << std::endl;
-    MPI_Barrier(MPI_COMM_WORLD);
-}
-
-void solver::update_X() {
-    x.resize(TempX.size());
-    for (int i = 0; i < TempX.size(); i++) {
-        x[i] = TempX[i];
-    }
-    //std::cout << "update_X done" << std::endl;
-    MPI_Barrier(MPI_COMM_WORLD);
-}
-
-void solver::devide() {
-    for (int i = 0; i < sendcount; i++) {
-        if (Arecv_strIdx[i] == Arecv_colIdx[i]) {
-            TempX[Arecv_strIdx[i]] /=  Arecv_value[i];
-        }
-    }
-    //std::cout << "devide done" << std::endl;
-    MPI_Barrier(MPI_COMM_WORLD);
-}
-
-void solver::initialization(int world_size) {
+void solver::initialization() {
+    
     std::ifstream ifs("f:\\C++\\DensityGradientMethod\\Settings.txt");
     if (ifs.is_open()) {
         while (ifs) {
@@ -371,172 +254,217 @@ void solver::initialization(int world_size) {
             settings.emplace(key, val);
         }
     }
-    
-    for (int i = 0; i < settings["M"][0]; i++) {
+
+    int N = 1 / settings["delta_z"][0];
+    int M = settings["M"][0];
+    x.resize(2 * M * N);
+
+    delta_z = settings["delta_z"][0];
+    delta_t = settings["delta_t"][0];
+    m_omega.resize(M);
+    for (int i = 0; i < M; i++) {
+        double omega = settings["omega"][i];
+        if (omega <= 0.491) {
+                m_omega[i] = 0.37464 + 1.54226 * omega - 0.26992 * omega * omega;
+        }
+        else {
+                m_omega[i] = 0.379642 + 1.48503 * omega - 0.164423 * omega * omega + 0.016666 * omega * omega * omega;
+        }
+    }
+
+    for (int i = 0; i < M; i++) {
         Tr.push_back(settings["Temp"][0] / settings["Tc"][i]);
-        alpha_Tr_omega.push_back((1 + m_omega * (1 - sqrt(Tr[i]))) * (1 + m_omega * (1 - sqrt(Tr[i]))));
+        alpha_Tr_omega.push_back((1 + m_omega[i] * (1 - sqrt(Tr[i]))) * (1 + m_omega[i] * (1 - sqrt(Tr[i]))));
         b_i.push_back(0.0778 * R * settings["Tc"][i] / settings["Pc"][i]);
         a_i.push_back(0.457235 * alpha_Tr_omega[i] * R * R * settings["Tc"][i] * settings["Tc"][i] / settings["Pc"][i]);
     }
-
-    numOfProc = world_size;
-
-    double omega = settings["omega"][0];
-    if (omega <= 0.491) {
-        m_omega = 0.37464 + 1.54226 * omega - 0.26992 * omega * omega;
-    }
-    else {
-        m_omega = 0.379642 + 1.48503 * omega - 0.164423 * omega * omega + 0.016666 * omega * omega * omega;
-    }
-
+    
     Mcoeff_init();
 
-    Acoeff_init();
+    Kcoeff_init();
    
-    Ccoeff_init();
+    Lcoeff_init();
     
     n_initDist_init();
-
-    x.resize(2*settings["M"][0] * settings["N"][0]);
 
     RightSideVector();
 
     matrixA();
+}
 
+void solver::fill_matrix_from_file(std::string path, char Matrix) {
+    std::ifstream ifs(path);
+    temp.clear();
+    temp.resize(0);
+    for (int i = 0; i < temp.size(); i++) {
+        temp[i].clear();
+        temp[i].resize(0);
+    }
+
+    temp.resize(settings["M"][0]);
+    if (ifs.is_open()) {
+        int i = 0;
+        while (ifs) {
+            std::string str;
+            double m;
+            std::getline(ifs, str, '\n');
+            std::string delimiter = " ";
+
+            size_t pos = 0;
+            std::string token;
+            while ((pos = str.find(delimiter)) != std::string::npos) {
+                token = str.substr(0, pos);
+                str.erase(0, pos + delimiter.length());
+                std::stringstream s;
+                s << token;
+                s >> m;
+                temp[i].push_back(m);
+            }
+            if (str == "") { break; }
+            std::stringstream s;
+            s << str;
+            s >> m;
+            temp[i].push_back(m);
+            i++;
+        }
+    }
+
+    if (Matrix == 'M') {
+        for (int i = 0; i < temp.size(); i++) {
+            Mcoeff.push_back(temp[i]);
+        }
+        return;
+    }
+    if (Matrix == 'K') {
+        for (int i = 0; i < temp.size(); i++) {
+            Kcoeff.push_back(temp[i]);
+        }
+        return;
+    }
+    if (Matrix == 'C') {
+        for (int i = 0; i < temp.size(); i++) {
+            c.push_back(temp[i]);
+        }
+        return;
+    }
 }
 
 void solver::Mcoeff_init() {
-    std::ifstream ifs("f:\\C++\\DensityGradientMethod\\Mcoeff.txt");
-    Mcoeff.resize(settings["M"][0]);
-    if (ifs.is_open()) {
-        int i = 0;
-        while (ifs) {
-            std::string str;
-            double m;
-            std::getline(ifs, str, '\n');
-            std::string delimiter = " ";
 
-            size_t pos = 0;
-            std::string token;
-            while ((pos = str.find(delimiter)) != std::string::npos) {
-                token = str.substr(0, pos);
-                str.erase(0, pos + delimiter.length());
-                std::stringstream s;
-                s << token;
-                s >> m;
-                Mcoeff[i].push_back(m);
-            }
-            if (str == "") { break; }
-            std::stringstream s;
-            s << str;
-            s >> m;
-            Mcoeff[i].push_back(m);
-            i++;
-        }
-    }
+    fill_matrix_from_file("f:\\C++\\DensityGradientMethod\\Mcoeff.txt", 'M');
 }
 
-void solver::Acoeff_init() {
-    std::ifstream ifs("f:\\C++\\DensityGradientMethod\\Acoeff.txt");
-    Acoeff.resize(settings["M"][0]);
-    if (ifs.is_open()) {
-        int i = 0;
-        while (ifs) {
-            std::string str;
-            double m;
-            std::getline(ifs, str, '\n');
-            std::string delimiter = " ";
+void solver::Kcoeff_init() {
 
-            size_t pos = 0;
-            std::string token;
-            while ((pos = str.find(delimiter)) != std::string::npos) {
-                token = str.substr(0, pos);
-                str.erase(0, pos + delimiter.length());
-                std::stringstream s;
-                s << token;
-                s >> m;
-                Acoeff[i].push_back(m);
-            }
-            if (str == "") { break; }
-            std::stringstream s;
-            s << str;
-            s >> m;
-            Acoeff[i].push_back(m);
-            i++;
-        }
-    }
+    fill_matrix_from_file("f:\\C++\\DensityGradientMethod\\Kcoeff.txt", 'K');
+    
 }
 
-void solver::Ccoeff_init() {
-    std::ifstream ifs("f:\\C++\\DensityGradientMethod\\Ccoeff.txt");
-    c.resize(settings["M"][0]);
-    if (ifs.is_open()) {
-        int i = 0;
-        while (ifs) {
-            std::string str;
-            double m;
-            std::getline(ifs, str, '\n');
-            std::string delimiter = " ";
+void solver::Lcoeff_init() {
 
-            size_t pos = 0;
-            std::string token;
-            while ((pos = str.find(delimiter)) != std::string::npos) {
-                token = str.substr(0, pos);
-                str.erase(0, pos + delimiter.length());
-                std::stringstream s;
-                s << token;
-                s >> m;
-                c[i].push_back(m);
-            }
-            if (str == "") { break; }
-            std::stringstream s;
-            s << str;
-            s >> m;
-            c[i].push_back(m);
-            i++;
-        }
-    }
+    fill_matrix_from_file("f:\\C++\\DensityGradientMethod\\Lcoeff.txt", 'C');
+   
 }
 
 void solver::n_initDist_init() {
-    std::ifstream ifs("f:\\C++\\DensityGradientMethod\\n_initial_distribution.txt");
+    int i;
+    int N = 1.0 / settings["delta_z"][0];
     int M = settings["M"][0];
-    n.resize(M);
-    if (ifs.is_open()) {
-        int i = 0;
-        while (ifs) {
-            std::string str;
-            double m;
-            std::getline(ifs, str, '\n');
-            std::string delimiter = " ";
 
-            size_t pos = 0;
-            std::string token;
-            while ((pos = str.find(delimiter)) != std::string::npos) {
-                token = str.substr(0, pos);
-                str.erase(0, pos + delimiter.length());
-                std::stringstream s;
-                s << token;
-                s >> m;
-                n[i].push_back(m);
+    n.resize(M);
+    for (i = 0; i < M; i++) { n[i].resize(N); }
+
+    for (i = 0; i < N; i++) {
+        if (i < N / 2) {
+            n[0][i] = 200.0;
+            //nout << 200 << " ";
+        }
+        if (i >= N / 2) {
+            n[0][i] = 99.0;
+            /*if (i == N - 1) {
+                //nout << 99;
             }
-            if (str == "") { break; }
-            std::stringstream s;
-            s << str;
-            s >> m;
-            n[i].push_back(m);
-            i++;
+            else {
+                nout << 99 << " ";
+            }*/
         }
     }
+    //nout << std::endl;
+    for (i = 0; i < N; i++) {
+        if (i < N / 2) {
+            n[1][i] = 557.0;
+            //nout << 557 << " ";
+        }
+        if (i >= N / 2) {
+            n[1][i] = 0.32;
+            /*if (i == N - 1) {
+                nout << 0.32;
+            }
+            else {
+                nout << 0.32 << " ";
+            }*/
+        }
+    }    
 }
 
-void solver::printAnswer(int rank) {
-    /*for (auto& elem : TempX) {
-        std::cout << elem << std::endl;
+void solver::printAnswer() {
+    
+    std::cout << "Vector x: " << std::endl;
+    std::cout << x << std::endl;
+}
+
+void solver::writeAnswer() {
+    int N = 1.0 / settings["delta_z"][0];
+    int M = settings["M"][0];
+    std::ostringstream strs;
+    strs << time;
+    std::string str = strs.str();
+
+   /* std::string name_output = str + ".txt";
+    std::ofstream fout(name_output);*/
+
+    std::string name_n_co2 = "n_co2_" + str + ".txt";
+    std::ofstream n_co2(name_n_co2);
+
+    std::string name_n_ndecane = "n_ndecane_" + str + ".txt";
+    std::ofstream n_ndecane(name_n_ndecane);
+
+    std::string name_mu_co2 = "mu_co2_" + str + ".txt";
+    std::ofstream mu_co2(name_mu_co2);
+
+    std::string name_mu_ndecane = "mu_ndecane_" + str + ".txt";
+    std::ofstream mu_ndecane(name_mu_ndecane);
+
+    /*for (auto& elem : x) {
+        fout << elem << std::endl;
     }*/
-    if (rank == 0) {
-        for (int i = 0; i < TempX.size(); i++) {
-            std::cout << "X[" << i << "] = " << TempX[i] << std::endl;
-        }
+
+    for (int i = 0; i < x.size(); i++) {
+
+        if(i < N){ n_co2 << x[i] << std::endl; }
+
+        if (i > N && i < N * M) { n_ndecane << x[i] << std::endl; }
+
+        if (i > N * M && i < (1 + M) * N) { mu_co2 << x[i] << std::endl; }
+
+        if (i > (1 + M) * N) { mu_ndecane << x[i] << std::endl; }
+    }
+
+}
+
+void solver::solve() {
+    for (int t = 0; t < 10; t++){
+        time = delta_t * t;
+        Eigen::SimplicialCholesky<Eigen::SparseMatrix<double>> chol(A_value);
+        x = chol.solve(f);
+        std::cout << "  TIME = " << time << std::endl;
+        writeAnswer();
+        new_time_step();
+    }
+};
+
+void solver::new_time_step() {
+    for (int i = 0; i < x.size(); i++) {
+        f[i] = x[i];
     }
 }
