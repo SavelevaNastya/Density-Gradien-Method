@@ -79,6 +79,7 @@ void solver::matrixA() {
     A_value.resize(sz, sz);
     std::cout << "Initialization A: start..." << std::endl;
     for (size_t k = 0; k < M; k++) { //номер блока по горизонтали 
+        std::cout << "Initialization A: first " << k << "..." << std::endl;
         for (size_t p = 0; p < M; p++) { // номер блока по вертикали 
             for (size_t i = k * N; i < (1 + k) * N; i++) { // номер строки в этом блоке
                 for (size_t j = p * N; j < (1 + p) * N; j++) { // номер столбца в этом блоке
@@ -106,6 +107,7 @@ void solver::matrixA() {
     }
     std::cout << "  Initialization A, second block: start..." << std::endl;
     for (size_t k = 0; k < M; k++) { //номер блока по горизонтали 
+        std::cout << "Initialization A: second " << k << "..." << std::endl;
         for (size_t p = 0; p < M; p++) { // номер блока по вертикали
             for (size_t i = k * N; i < (1 + k) * N; i++) { // номер строки в этом блоке
                 for (size_t j = N * M + p * N; j < N * M + (1 + p) * N; j++) { // номер столбца в этом блоке
@@ -150,6 +152,7 @@ void solver::matrixA() {
     }
     std::cout << "  Initialization A, third block: start..." << std::endl;
     for (size_t k = 0; k < M; k++) { //номер блока по горизонтали 
+        std::cout << "Initialization A: third " << k << "..." << std::endl;
         for (size_t p = 0; p < M; p++) { // номер блока по вертикали 
             for (size_t i = N * M + k * N; i < N * M + (1 + k) * N; i++) { // номер строки в этом блоке
                 for (size_t j = p * (N); j < (1 + p) * N; j++) { // номер столбца в этом блоке
@@ -195,6 +198,7 @@ void solver::matrixA() {
     }
     std::cout << "  Initialization A, fourth block: start..." << std::endl;
     for (size_t k = 0; k < M; k++) { //номер блока по горизонтали 
+        std::cout << "Initialization A: fourth " << k << "..." << std::endl;
         for (size_t p = 0; p < M; p++) { // номер блока по вертикали 
             for (size_t i = N * M + k * N; i < N * M + (1 + k) * N; i++) { // номер строки в этом блоке
                 for (size_t j = N * M + p * N; j < N * M + (1 + p) * N; j++) { // номер столбца в этом блоке
@@ -377,40 +381,19 @@ void solver::n_initDist_init() {
     for (i = 0; i < N; i++) {
         if (i < N / 2) {
             n[0][i] = 200.0;
-            //nout << 200 << " ";
         }
         if (i >= N / 2) {
             n[0][i] = 99.0;
-            /*if (i == N - 1) {
-                //nout << 99;
-            }
-            else {
-                nout << 99 << " ";
-            }*/
         }
     }
-    //nout << std::endl;
     for (i = 0; i < N; i++) {
         if (i < N / 2) {
             n[1][i] = 557.0;
-            //nout << 557 << " ";
         }
         if (i >= N / 2) {
             n[1][i] = 0.32;
-            /*if (i == N - 1) {
-                nout << 0.32;
-            }
-            else {
-                nout << 0.32 << " ";
-            }*/
         }
     }    
-}
-
-void solver::printAnswer() {
-    
-    std::cout << "Vector x: " << std::endl;
-    std::cout << x << std::endl;
 }
 
 void solver::writeAnswer() {
@@ -435,10 +418,6 @@ void solver::writeAnswer() {
     std::string name_mu_ndecane = "mu_ndecane_" + str + ".txt";
     std::ofstream mu_ndecane(name_mu_ndecane);
 
-    /*for (auto& elem : x) {
-        fout << elem << std::endl;
-    }*/
-
     for (int i = 0; i < x.size(); i++) {
 
         if(i < N){ n_co2 << x[i] << std::endl; }
@@ -458,7 +437,8 @@ void solver::solve() {
         Eigen::SimplicialCholesky<Eigen::SparseMatrix<double>> chol(A_value);
         x = chol.solve(f);
         std::cout << "  TIME = " << time << std::endl;
-        writeAnswer();
+        //writeAnswer();
+        sigma();
         new_time_step();
     }
 };
@@ -467,4 +447,38 @@ void solver::new_time_step() {
     for (int i = 0; i < x.size(); i++) {
         f[i] = x[i];
     }
+}
+
+void solver::sigma() {
+    double sigma = 0, sum = 0;
+    int N = 1.0 / delta_z;
+    int M = settings["M"][0];
+
+    int count = 0;
+    n_new.resize(M);
+    for (int i = 0; i < M; i++) { n_new[i].resize(N); }
+    for(int i = 0; i < M; i++){
+        for (int j = 0; j < N; j++) {
+            n_new[i][j] = x[count];
+            count++;
+        }
+    }
+
+    for (int i = 1; i < N - 2; i++) {
+        sum += f_sigma(i - 1) + 4 * f_sigma(i) + f_sigma(i + 1);
+    }
+    sigma = delta_z * sum / 3.0;
+    std::cout << "sigma = " << sigma << std::endl;
+}
+
+double solver::f_sigma(int spatialidx) {
+    double sum = 0;
+    int M = settings["M"][0];
+    for (int i = 0; i < M; i++) {
+        for (int j = 0; j < M; j++) {
+            sum += c[i][j] * ((n_new[i][spatialidx + 1] - n_new[i][spatialidx]) / delta_z) * ((n_new[j][spatialidx + 1] - n_new[j][spatialidx]) / delta_z);
+        }
+    }
+    
+    return sum;
 }
