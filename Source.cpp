@@ -8,8 +8,6 @@ double solver::df_bulk(int compIdx, int spatialIdx) {
     double n_sum = 0;
     double sum1 = 0, sum2 = 0;
 
-    int M = settings["M"][0]; 
-    int N = 1.0 / settings["delta_z"][0];
     double Temp = settings["Temp"][0];
     double b = 0, a = 0;
 
@@ -38,8 +36,11 @@ double solver::df_bulk(int compIdx, int spatialIdx) {
 
     z.resize(M);
     for (int i = 0; i < M; i++) {
-        z[i] = n[compIdx][spatialIdx] / n_sum;
+        z[i] = n[i][spatialIdx] / n_sum;
         b += z[i] * b_i[i];
+    }
+
+    for (int i = 0; i < M; i++) {
         for (int j = 0; j < M; j++) {
             a += z[i] * z[j] * Acoeff[i][j];
         }
@@ -53,8 +54,7 @@ double solver::df_bulk(int compIdx, int spatialIdx) {
 }
 
 void solver::RightSideVector() {
-    int M = settings["M"][0];
-    int N = 1.0 / settings["delta_z"][0];
+    
     f.resize(2 * N * M);
     int count = 0;
     for (size_t i = 0; i < M; i++) {
@@ -73,8 +73,7 @@ void solver::RightSideVector() {
 }
 
 void solver::matrixA() {
-    int M = settings["M"][0]; 
-    int N = 1.0 / settings["delta_z"][0];
+    
     int sz = 2 * M * N;
     A_value.resize(sz, sz);
     std::cout << "Initialization A: start..." << std::endl;
@@ -230,7 +229,7 @@ void solver::matrixA() {
 
 void solver::initialization() {
     
-    std::ifstream ifs("f:\\C++\\DensityGradientMethod\\Settings.txt");
+    std::ifstream ifs("./Parameters/Settings.txt");
     if (ifs.is_open()) {
         while (ifs) {
             std::string key, str;
@@ -259,8 +258,8 @@ void solver::initialization() {
         }
     }
 
-    int N = 1 / settings["delta_z"][0];
-    int M = settings["M"][0];
+    N = settings["D"][0] / settings["delta_z"][0];
+    M = settings["M"][0];
     x.resize(2 * M * N);
 
     delta_z = settings["delta_z"][0];
@@ -279,7 +278,7 @@ void solver::initialization() {
     for (int i = 0; i < M; i++) {
         Tr.push_back(settings["Temp"][0] / settings["Tc"][i]);
         alpha_Tr_omega.push_back((1 + m_omega[i] * (1 - sqrt(Tr[i]))) * (1 + m_omega[i] * (1 - sqrt(Tr[i]))));
-        b_i.push_back(0.0778 * R * settings["Tc"][i] / settings["Pc"][i]);
+        b_i.push_back(0.077796 * R * settings["Tc"][i] / settings["Pc"][i]);
         a_i.push_back(0.457235 * alpha_Tr_omega[i] * R * R * settings["Tc"][i] * settings["Tc"][i] / settings["Pc"][i]);
     }
     
@@ -296,16 +295,9 @@ void solver::initialization() {
     matrixA();
 }
 
-void solver::fill_matrix_from_file(std::string path, char Matrix) {
+void solver::fill_matrix_from_file(std::string path, std::vector<std::vector<double>>& Matrix) {
     std::ifstream ifs(path);
-    temp.clear();
-    temp.resize(0);
-    for (int i = 0; i < temp.size(); i++) {
-        temp[i].clear();
-        temp[i].resize(0);
-    }
-
-    temp.resize(settings["M"][0]);
+    Matrix.resize(M);
     if (ifs.is_open()) {
         int i = 0;
         while (ifs) {
@@ -322,58 +314,37 @@ void solver::fill_matrix_from_file(std::string path, char Matrix) {
                 std::stringstream s;
                 s << token;
                 s >> m;
-                temp[i].push_back(m);
+                Matrix[i].push_back(m);
             }
             if (str == "") { break; }
             std::stringstream s;
             s << str;
             s >> m;
-            temp[i].push_back(m);
+            Matrix[i].push_back(m);
             i++;
         }
-    }
-
-    if (Matrix == 'M') {
-        for (int i = 0; i < temp.size(); i++) {
-            Mcoeff.push_back(temp[i]);
-        }
-        return;
-    }
-    if (Matrix == 'K') {
-        for (int i = 0; i < temp.size(); i++) {
-            Kcoeff.push_back(temp[i]);
-        }
-        return;
-    }
-    if (Matrix == 'C') {
-        for (int i = 0; i < temp.size(); i++) {
-            c.push_back(temp[i]);
-        }
-        return;
     }
 }
 
 void solver::Mcoeff_init() {
 
-    fill_matrix_from_file("f:\\C++\\DensityGradientMethod\\Mcoeff.txt", 'M');
+    fill_matrix_from_file("./Parameters/Mcoeff.txt", Mcoeff);
 }
 
 void solver::Kcoeff_init() {
 
-    fill_matrix_from_file("f:\\C++\\DensityGradientMethod\\Kcoeff.txt", 'K');
+    fill_matrix_from_file("./Parameters/Kcoeff.txt", Kcoeff);
     
 }
 
 void solver::Lcoeff_init() {
 
-    fill_matrix_from_file("f:\\C++\\DensityGradientMethod\\Lcoeff.txt", 'C');
+    fill_matrix_from_file("./Parameters/Lcoeff.txt", c);
    
 }
 
 void solver::n_initDist_init() {
     int i;
-    int N = 1.0 / settings["delta_z"][0];
-    int M = settings["M"][0];
 
     n.resize(M);
     for (i = 0; i < M; i++) { n[i].resize(N); }
@@ -397,26 +368,33 @@ void solver::n_initDist_init() {
 }
 
 void solver::writeAnswer() {
-    int N = 1.0 / settings["delta_z"][0];
-    int M = settings["M"][0];
+    _mkdir("Results");
+
+    _mkdir("Results/n");
+    _mkdir("Results/mu");
+
+    _mkdir("Results/n/CO2");
+    _mkdir("Results/n/n_decane");
+    _mkdir("Results/mu/CO2");
+    _mkdir("Results/mu/n_decane");
+
     std::ostringstream strs;
     strs << time;
     std::string str = strs.str();
 
-   /* std::string name_output = str + ".txt";
-    std::ofstream fout(name_output);*/
-
-    std::string name_n_co2 = "n_co2_" + str + ".txt";
+    std::string name_n_co2 = "Results/n/CO2/" + str + ".txt";
     std::ofstream n_co2(name_n_co2);
 
-    std::string name_n_ndecane = "n_ndecane_" + str + ".txt";
+    std::string name_n_ndecane = "Results/n/n_decane/" + str + ".txt";
     std::ofstream n_ndecane(name_n_ndecane);
 
-    std::string name_mu_co2 = "mu_co2_" + str + ".txt";
+    std::string name_mu_co2 = "Results/mu/CO2/" + str + ".txt";
     std::ofstream mu_co2(name_mu_co2);
 
-    std::string name_mu_ndecane = "mu_ndecane_" + str + ".txt";
+    std::string name_mu_ndecane = "Results/mu/n_decane/" + str + ".txt";
     std::ofstream mu_ndecane(name_mu_ndecane);
+
+    
 
     for (int i = 0; i < x.size(); i++) {
 
@@ -424,36 +402,52 @@ void solver::writeAnswer() {
 
         if (i > N && i < N * M) { n_ndecane << x[i] << std::endl; }
 
-        if (i > N * M && i < (1 + M) * N) { mu_co2 << x[i] << std::endl; }
+        if (i >= N * M && i < (1 + M) * N) { mu_co2 << x[i] << std::endl; }
 
-        if (i > (1 + M) * N) { mu_ndecane << x[i] << std::endl; }
+        if (i >= (1 + M) * N) { mu_ndecane << x[i] << std::endl; }
     }
 
 }
 
 void solver::solve() {
-    for (int t = 0; t < 10; t++){
-        time = delta_t * t;
-        Eigen::SimplicialCholesky<Eigen::SparseMatrix<double>> chol(A_value);
+    for (int t = 0; t < 100; t++){
+
+        SimplicialCholesky<SparseMatrix<double>> chol(A_value);
         x = chol.solve(f);
+
+        time = delta_t * t;
         std::cout << "  TIME = " << time << std::endl;
-        //writeAnswer();
+        writeAnswer();
         sigma();
         new_time_step();
     }
 };
 
 void solver::new_time_step() {
-    for (int i = 0; i < x.size(); i++) {
+    
+    int count = 0;
+    for (int i = 0; i < M; i++) {
+        for (int j = 0; j < N; j++) {
+            n[i][j] = x[count];
+            count++;
+        }
+    }
+
+    for (int i = 0; i < N * M; i++) {
         f[i] = x[i];
+    }
+    count = N * M;
+    for (int i = 0; i < M; i++) {
+        for (int j = 0; j < N; j++) {
+            f[count] = df_bulk(i, j);
+            count++;
+        }
     }
 }
 
 void solver::sigma() {
     double sigma = 0, sum = 0;
-    int N = 1.0 / delta_z;
-    int M = settings["M"][0];
-
+    
     int count = 0;
     n_new.resize(M);
     for (int i = 0; i < M; i++) { n_new[i].resize(N); }
@@ -468,12 +462,11 @@ void solver::sigma() {
         sum += f_sigma(i - 1) + 4 * f_sigma(i) + f_sigma(i + 1);
     }
     sigma = delta_z * sum / 3.0;
-    std::cout << "sigma = " << sigma << std::endl;
+    std::cout << "      sigma = " << sigma << std::endl;
 }
 
 double solver::f_sigma(int spatialidx) {
     double sum = 0;
-    int M = settings["M"][0];
     for (int i = 0; i < M; i++) {
         for (int j = 0; j < M; j++) {
             sum += c[i][j] * ((n_new[i][spatialidx + 1] - n_new[i][spatialidx]) / delta_z) * ((n_new[j][spatialidx + 1] - n_new[j][spatialidx]) / delta_z);

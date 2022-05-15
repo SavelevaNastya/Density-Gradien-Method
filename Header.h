@@ -2,18 +2,18 @@
 #include <math.h>
 #include <vector>
 #include <map>
-#include <mpi.h>
 #include <fstream>
 #include <sstream>
 #include <iostream>
-#include <F:/Eigen/Dense>
-#include <F:/Eigen/Sparse>
+#include <direct.h>
+#include <./Libraries/Eigen/Dense>
+#include <./Libraries/Eigen/Sparse>
 
 using namespace Eigen;
 
 class solver {
 private:
-	std::map<std::string, std::vector<double>> settings; //M, delta_t, delta_z, Temp, omega[], Tc[], Pc[]
+	std::map<std::string, std::vector<double>> settings; //M, D, delta_t, delta_z, Temp, omega[], Tc[], Pc[]
 
 	std::vector<double> Tr, alpha_Tr_omega, a_i, b_i, z, m_omega;
 	std::vector<std::vector<double>> c, Mcoeff, Acoeff, Kcoeff, temp;
@@ -26,7 +26,8 @@ private:
 
 	Eigen::VectorXd x, f;
 	Eigen::SparseMatrix<double> A_value; //SLAE A* x = f
-	double delta_z, delta_t, time;
+	double delta_z, delta_t, time, D;
+	int M, N;
 
 	double df_bulk(int, int);
 	void RightSideVector();
@@ -35,8 +36,8 @@ private:
 	void Kcoeff_init();
 	void Lcoeff_init();
 	void n_initDist_init();
-	void fill_matrix_from_file(std::string path, char Matrix);
-	void writeAnswer();
+	void fill_matrix_from_file(std::string path, std::vector<std::vector<double>>& Matrix);
+	void writeAnswer(); 
 	void new_time_step();
 	double f_sigma(int);
 public:
